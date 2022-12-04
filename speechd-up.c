@@ -42,7 +42,7 @@
 #include <wctype.h>
 
 #include <iconv.h>
-#include <libspeechd.h>
+#include <speech-dispatcher/libspeechd.h>
 
 #include "log.h"
 #include "options.h"
@@ -61,6 +61,179 @@ fd_set fd_write;
 SPDConnection *conn;
 
 char *spd_spk_pid_file;
+
+// BEGIN workaround raw speech-dispatcher access
+static char *get_param_str(char *reply, int num, int *err)
+{
+	int i;
+	char *tptr;
+	char *pos;
+	char *pos_begin;
+	char *pos_end;
+	char *rep;
+
+	assert(err != NULL);
+
+	if (num < 1) {
+		*err = -1;
+		return NULL;
+	}
+
+	pos = reply;
+	for (i = 0; i <= num - 2; i++) {
+		pos = strstr(pos, "\r\n");
+		if (pos == NULL) {
+			*err = -2;
+			return NULL;
+		}
+		pos += 2;
+	}
+
+	if (strlen(pos) < 4)
+		return NULL;
+
+	*err = strtol(pos, &tptr, 10);
+	if (*err >= 300 && *err <= 399)
+		return NULL;
+
+	if ((*tptr != '-') || (tptr != pos + 3)) {
+		*err = -3;
+		return NULL;
+	}
+
+	pos_begin = pos + 4;
+	pos_end = strstr(pos_begin, "\r\n");
+	if (pos_end == NULL) {
+		*err = -4;
+		return NULL;
+	}
+
+	rep = (char *)strndup(pos_begin, pos_end - pos_begin);
+	*err = 0;
+	LOG(5, "%s", rep);
+	return rep;
+}
+
+char* get_voice_type(SPDConnection * connection)
+{
+	char *ret;
+	int err;
+	char *reply = NULL;
+	spd_execute_command_with_reply(connection, "GET voice_type", &reply);
+	ret = get_param_str(reply, 1, &err);
+	free(reply);
+	return ret;
+}
+// END workaround speech-dispatcher access
+
+
+// Constant arrays
+const SPDPunctuation punc_types[] = {SPD_PUNCT_ALL, SPD_PUNCT_SOME, SPD_PUNCT_NONE};
+const int punc_types_count = 3;
+const SPDVoiceType voice_types[] = {SPD_MALE1, SPD_MALE2, SPD_MALE3, SPD_FEMALE1, SPD_FEMALE2, SPD_FEMALE3, SPD_CHILD_MALE, SPD_CHILD_FEMALE};
+const char* voice_types_str[] = {"MALE1", "MALE2", "MALE3", "FEMALE1", "FEMALE2", "FEMALE3", "CHILD_MALE", "CHILD_FEMALE"};
+const int voice_types_count = 8;
+
+// Current values
+int currate = 5;
+int curratebase = -100;
+int curpitch = 5;
+int curpitchbase = -100;
+int curvol = 5;
+int curvolbase = -100;
+int curvoicenum = 0;
+SPDVoiceType curvoice = SPD_MALE1;
+int curpuncnum = 0;
+SPDPunctuation curpunc = SPD_PUNCT_ALL;
+int safe_to_change_punc = 0;
+
+const char* SPEAKUP_PITCH = "/sys/accessibility/speakup/soft/pitch";
+const char* SPEAKUP_PUNCTUATION = "/sys/accessibility/speakup/soft/punct";
+const char* SPEAKUP_RATE = "/sys/accessibility/speakup/soft/rate";
+const char* SPEAKUP_VOICE = "/sys/accessibility/speakup/soft/voice";
+const char* SPEAKUP_VOLUME = "/sys/accessibility/speakup/soft/vol";
+
+void get_initial_speakup_value(int num, int *ret, int *base)
+{
+	assert((num >= -100) && (num <= 100));
+	int val = num + 100;
+	*ret = val / 20;
+	if (*ret == 10) *ret = 9;
+	assert((*ret >= 0) && (*ret <= 9));
+ *base = num - 20 * (*ret);
+}
+
+int get_speakup_option(const char* file_location)
+{
+	int digit = 0;
+	FILE *pFile;
+	pFile = fopen (file_location, "r");
+	if (pFile == NULL) {
+		LOG(1, "Could not open for reading: %s", file_location);
+		return 0;
+	}
+	else {
+		fscanf(pFile, "%d", &digit);
+		fclose(pFile);
+	}
+	return digit;
+}
+
+void set_speakup_option(const char* file_location, int digit)
+{
+	FILE *pFile = fopen(file_location, "w");
+	if (pFile == NULL) {
+		LOG(1, "Could not open for writing: %s", file_location);
+		return;
+	};
+	fprintf(pFile, "%d\n", digit);
+	fclose(pFile);
+}
+
+void spd_update_variables()
+{
+currate = get_speakup_option(SPEAKUP_RATE);
+curpitch = get_speakup_option(SPEAKUP_PITCH);
+//curvol = get_speakup_option(SPEAKUP_VOLUME);
+curvoicenum = get_speakup_option(SPEAKUP_VOICE);
+//curpunc = get_speakup_option(SPEAKUP_PUNCTUATION);
+}
+
+void spd_sync_defaults()
+{
+	LOG(5,"Attempting to synchronize speechd-up to inherited speech-dispatcher defaults\n");
+	int rate = spd_get_voice_rate(conn);
+	get_initial_speakup_value(rate, &currate, &curratebase);
+	LOG(5,"Default rate %d translated to speakup value %d with base %d\n", rate, currate, curratebase);
+	set_speakup_option(SPEAKUP_RATE, currate);
+	int pitch = spd_get_voice_pitch(conn);
+	get_initial_speakup_value(pitch, &curpitch, &curpitchbase);
+	LOG(5,"Default pitch %d translated to speakup value %d with base %d\n", pitch, curpitch, curpitchbase);
+	set_speakup_option(SPEAKUP_PITCH, curpitch);
+	int vol = spd_get_volume(conn);
+	get_initial_speakup_value(vol, &curvol, &curvolbase);
+	LOG(5,"Default volume %d translated to speakup value %d with base %d\n", vol, curvol, curvolbase);
+	set_speakup_option(SPEAKUP_VOLUME, curvol);
+	char *curvoicestr = get_voice_type(conn);
+	for (int i = 0; i < voice_types_count; ++i) {
+		if (strcmp(voice_types_str[i], curvoicestr) == 0) {
+			curvoicenum = i;
+			curvoice = voice_types[i];
+		}
+	}
+	LOG(5,"Default voice type %d\n", curvoicenum);
+	set_speakup_option(SPEAKUP_VOICE, curvoicenum);
+	/* no way to get punctuation
+	curpunc = spd_get_punctuation(conn);
+	for (int i = 0; i < punc_types_count; ++i) {
+		if (punc_types[i] == curpunc) {
+			curpuncnum = i;
+		}
+	}
+	LOG(5,"Default punctuation type %d\n", curpunc);
+	set_speakup_option(SPEAKUP_PUNCTUATION, curpuncnum);
+	*/
+}
 
 void init_ssml_char_escapes(void);
 void spd_spk_reset(int sig);
@@ -85,7 +258,7 @@ index_marker_callback(size_t msg_id, size_t client_id, SPDNotificationType type,
 
 void speechd_init()
 {
-	conn = spd_open("speakup", "softsynth", "test", SPD_MODE_THREADED);
+	conn = spd_open("speakup", "softsynth", "unknown", SPD_MODE_THREADED);
 	if (conn == 0)
 		FATAL(1, "ERROR! Can't connect to Speech Dispatcher!");
 	conn->callback_im = index_marker_callback;
@@ -100,6 +273,9 @@ void speechd_init()
 		LOG(1, "Unable to set capital letter recognition");
 
 	init_ssml_char_escapes();
+	if (options.respect_spd_defaults == 1)
+		spd_sync_defaults();
+	//spd_update_variables();
 }
 
 void speechd_close()
@@ -145,7 +321,6 @@ int init_speakup_tables()
 void process_command(char command, unsigned int param, int pm)
 {
 	int val, ret = 0;
-	static int currate = 5, curpitch = 5;
 
 	LOG(5, "cmd: %c, param: %d, rel: %d", command, param, pm);
 	if (pm != 0)
@@ -159,25 +334,35 @@ void process_command(char command, unsigned int param, int pm)
 		break;
 
 	case 'b':		/* set punctuation level */
-		switch (param) {
-		case 0:
-			LOG(5, "[punctuation all]");
-			ret = spd_set_punctuation(conn, SPD_PUNCT_ALL);
-			break;
-		case 1:
-		case 2:
-			LOG(5, "[punctuation some]");
-			ret = spd_set_punctuation(conn, SPD_PUNCT_SOME);
-			break;
-		case 3:
-			LOG(5, "[punctuation none]");
-			ret = spd_set_punctuation(conn, SPD_PUNCT_NONE);
-			break;
-		default:
-			LOG(1, "ERROR: Invalid punctuation mode!");
+		if (options.respect_spd_defaults == 0 || safe_to_change_punc == 1) {
+			switch (param) {
+			case 0:
+				LOG(5, "[punctuation all]");
+				ret = spd_set_punctuation(conn, SPD_PUNCT_ALL);
+				break;
+			case 1:
+				LOG(5, "[punctuation some]");
+				ret = spd_set_punctuation(conn, SPD_PUNCT_SOME);
+				break;
+			case 2:
+				LOG(5, "[punctuation none]");
+				ret = spd_set_punctuation(conn, SPD_PUNCT_NONE);
+				break;
+			default:
+				LOG(1, "ERROR: Invalid punctuation mode!");
+			}
+			if (ret == -1)
+				LOG(1, "ERROR: Can't set punctuation mode");
+			else {
+				curpuncnum = param;
+				curpunc = punc_types[curpuncnum];
+			}
+			if (param >= punc_types_count)
+				set_speakup_option(SPEAKUP_PUNCTUATION, curpuncnum);
 		}
-		if (ret == -1)
-			LOG(1, "ERROR: Can't set punctuation mode");
+		if (options.respect_spd_defaults == 1 && safe_to_change_punc == 0) {
+			safe_to_change_punc = 1;
+		}
 		break;
 
 	case 'o':		/* set voice */
@@ -220,6 +405,12 @@ void process_command(char command, unsigned int param, int pm)
 		}
 		if (ret == -1)
 			LOG(1, "ERROR: Can't set voice!");
+		else {
+			curvoicenum = param;
+			curvoice = voice_types[curvoicenum];
+		}
+		if (param >= voice_types_count)
+			set_speakup_option(SPEAKUP_VOICE, curvoicenum);
 		break;
 
 	case 'p':		/* set pitch command */
@@ -227,7 +418,7 @@ void process_command(char command, unsigned int param, int pm)
 			curpitch += pm;
 		else
 			curpitch = param;
-		val = (curpitch - 5) * 20;
+		val = (curpitch * 20) + curpitchbase;
 		assert((val >= -100) && (val <= +100));
 		LOG(5, "[pitch %d, param: %d]", val, param);
 		ret = spd_set_voice_pitch(conn, val);
@@ -240,7 +431,10 @@ void process_command(char command, unsigned int param, int pm)
 			currate += pm;
 		else
 			currate = param;
-		val = (currate * 22) - 100;
+		if (options.respect_spd_defaults == 1)
+			val = (currate * 20) + curratebase;
+		else
+			val = (currate * 22) - 100;
 		assert((val >= -100) && (val <= +100));
 		LOG(5, "[rate %d, param: %d]", val, param);
 		ret = spd_set_voice_rate(conn, val);
@@ -254,7 +448,16 @@ void process_command(char command, unsigned int param, int pm)
 		break;
 
 	case 'v':
-		LOG(3, "[volume setting not supported yet]");
+		if (pm)
+			curvol += pm;
+		else
+			curvol = param;
+		val = (curvol * 20) + curvolbase;
+		assert((val >= -100) && (val <= +100));
+		LOG(5, "[vol %d, param: %d]", val, param);
+		ret = spd_set_volume(conn, val);
+		if (ret == -1)
+			LOG(1, "ERROR: Invalid volume!");
 		break;
 
 	case 'x':
