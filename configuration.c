@@ -48,6 +48,7 @@ static DOTCONF_CB(cb_speakupCharacters);
 static DOTCONF_CB(cb_speakupChartab);
 static DOTCONF_CB(cb_speakupCoding);
 static DOTCONF_CB(cb_speakupDevice);
+static DOTCONF_CB(cb_respectSPDDefaults);
 
 /*
  * Initialize the array of configuration options.
@@ -61,6 +62,7 @@ static const configoption_t configOptions[] = {
 	{"SpeakupChartab", ARG_STR, cb_speakupChartab, NULL, CTX_ALL,},
 	{"SpeakupCoding", ARG_STR, cb_speakupCoding, NULL, CTX_ALL,},
 	{"SpeakupDevice", ARG_STR, cb_speakupDevice, NULL, CTX_ALL,},
+	{"RespectSPDDefaults", ARG_TOGGLE, cb_respectSPDDefaults, NULL, CTX_ALL,},
 	LAST_OPTION
 };
 
@@ -168,6 +170,17 @@ static DOTCONF_CB(cb_speakupDevice)
 		options.speakup_device = strdup(cmd->data.str);
 		options.speakup_device_set = CONFIG_FILE;
 		LOG(3, "setting %s has value %s\n", cmd->name, cmd->data.str);
+	}
+	return NULL;
+}
+
+static DOTCONF_CB(cb_respectSPDDefaults)
+{
+	if (options.respect_spd_defaults != COMMAND_LINE) {
+		LOG(3, "setting %s to %i\n", cmd->name, cmd->data.value);
+		options.respect_spd_defaults = cmd->data.value;
+		options.respect_spd_defaults_set = CONFIG_FILE;
+		LOG(3, "setting %s has value %i\n", cmd->name, cmd->data.value);
 	}
 	return NULL;
 }
