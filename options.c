@@ -44,11 +44,12 @@ static struct option spd_long_options[] = {
 	{"dont-init-tables", 0, 0, 't'},
 	{"probe", 0, 0, 'p'},
 	{"version", 0, 0, 'v'},
+	{"respect-spd-defaults", 0, 0, 'x'},
 	{"help", 0, 0, 0},
 	{0, 0, 0, 0}
 };
 
-static char *spd_short_options = "dsvhpti:l:L:C:D:S:c:";
+static char *spd_short_options = "dsvxhpti:l:L:C:D:S:c:";
 
 struct spd_options options;
 
@@ -64,7 +65,7 @@ void options_print_help(char *argv[])
 	assert(argv[0]);
 
 	printf
-	    ("Usage: %s [-{d|s}] [-l {1|2|3|4|5}] [-L=logfile] [-c=encoding] | [-v] | [-h]\n",
+	    ("Usage: %s [-{d|s}] [-l {1|2|3|4|5}] [-L=logfile] [-c=encoding] | [-v] [-x] | [-h]\n",
 	     argv[0]);
 	printf
 	    ("SpeechD-Up -- Interface between Speech Dispatcher and SpeakUp (GNU GPL)\n\n");
@@ -79,6 +80,7 @@ void options_print_help(char *argv[])
 	       "-p, --probe          -      Initialize everything and try to say some message\n"
 	       "                            but don't connect to SpeakUp. For testing purposes.\n"
 	       "-v, --version        -      Report version of this program\n"
+	       "-x, --respect-spd-defaults        -      Respect the settings loaded by speech-dispatcher\n"
 	       "-h, --help           -      Print this info\n\n"
 	       "Copyright (C) 2003,2005 Brailcom, o.p.s.\n"
 	       "This is free software; you can redistribute it and/or modify it\n"
@@ -124,6 +126,8 @@ void options_set_default(void)
 	options.probe_mode = 0;
 	options.dont_init_tables = 0;
 	options.dont_init_tables_set = DEFAULT;
+	options.respect_spd_defaults = 0;
+	options.respect_spd_defaults_set = DEFAULT;
 }
 
 void options_parse(int argc, char *argv[])
@@ -199,6 +203,9 @@ void options_parse(int argc, char *argv[])
 		case 't':
 			options.dont_init_tables = 1;
 			options.dont_init_tables_set = COMMAND_LINE;
+		case 'x':
+			options.respect_spd_defaults = 1;
+			options.respect_spd_defaults_set = COMMAND_LINE;
 			break;
 		default:
 			printf("Error: Unrecognized option\n\n");

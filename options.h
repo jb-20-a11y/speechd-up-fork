@@ -49,6 +49,8 @@ struct spd_options {
 	int probe_mode;
 	int dont_init_tables;
 	int dont_init_tables_set;
+	int respect_spd_defaults;
+	int respect_spd_defaults_set;
 };
 
 void options_set_default(void);
