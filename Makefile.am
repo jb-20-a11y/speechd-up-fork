@@ -1,6 +1,9 @@
 # Process this file with automake to produce Makefile.in
 
+AUTOMAKE_OPTIONS = subdir-objects
 bin_PROGRAMS = speechd-up
+check_PROGRAMS = test_get_initial_speakup_value
+TESTS = $(check_PROGRAMS)
 speechd_up_CFLAGS = -Wall
 speechd_up_CPPFLAGS = -DLOGPATH=\"$(logpath)\" \
 	-DPIDPATH=\"$(pidpath)\" \
@@ -12,7 +15,13 @@ speechd_up_SOURCES = speechd-up.c\
 	log.c \
 	log.h \
 	configuration.c \
-	configuration.h
+	configuration.h \
+	speechd-up-utils.c \
+	speechd-up-utils.h
+
+test_get_initial_speakup_value_SOURCES = speechd-up-utils.c \
+	tests/test_get_initial_speakup_value.c
+test_get_initial_speakup_value_CPPFLAGS = -I$(srcdir)
 
 dist_sysconf_DATA = speechd-up.conf
 

@@ -47,6 +47,7 @@
 #include "log.h"
 #include "options.h"
 #include "configuration.h"
+#include "speechd-up-utils.h"
 
 #define BUF_SIZE 1024
 
@@ -152,19 +153,6 @@ const char* SPEAKUP_PUNCTUATION = "/sys/accessibility/speakup/soft/punct";
 const char* SPEAKUP_RATE = "/sys/accessibility/speakup/soft/rate";
 const char* SPEAKUP_VOICE = "/sys/accessibility/speakup/soft/voice";
 const char* SPEAKUP_VOLUME = "/sys/accessibility/speakup/soft/vol";
-
-void get_initial_speakup_value(int num, int *ret, int *base)
-{
-	assert((num >= -100) && (num <= 100));
-	int val = num + 100;
-	*ret = val / 20;
-	if (*ret == 10) {
-		*ret = 9;
-		*base = 20;
-	}
-	else *base = val % 20;
-	assert((*ret >= 0) && (*ret <= 9));
-}
 
 int get_speakup_option(const char* file_location)
 {
