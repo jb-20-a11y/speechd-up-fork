@@ -158,9 +158,12 @@ void get_initial_speakup_value(int num, int *ret, int *base)
 	assert((num >= -100) && (num <= 100));
 	int val = num + 100;
 	*ret = val / 20;
-	if (*ret == 10) *ret = 9;
+	if (*ret == 10) {
+		*ret = 9;
+		*base = 20;
+	}
+	else *base = val % 20;
 	assert((*ret >= 0) && (*ret <= 9));
- *base = num - 20 * (*ret);
 }
 
 int get_speakup_option(const char* file_location)
@@ -418,7 +421,7 @@ void process_command(char command, unsigned int param, int pm)
 			curpitch += pm;
 		else
 			curpitch = param;
-		val = (curpitch * 20) + curpitchbase;
+		val = (curpitch * 20) + curpitchbase - 100;
 		assert((val >= -100) && (val <= +100));
 		LOG(5, "[pitch %d, param: %d]", val, param);
 		ret = spd_set_voice_pitch(conn, val);
@@ -432,7 +435,7 @@ void process_command(char command, unsigned int param, int pm)
 		else
 			currate = param;
 		if (options.respect_spd_defaults == 1)
-			val = (currate * 20) + curratebase;
+			val = (currate * 20) + curratebase - 100;
 		else
 			val = (currate * 22) - 100;
 		assert((val >= -100) && (val <= +100));
@@ -452,7 +455,7 @@ void process_command(char command, unsigned int param, int pm)
 			curvol += pm;
 		else
 			curvol = param;
-		val = (curvol * 20) + curvolbase;
+		val = (curvol * 20) + curvolbase - 100;
 		assert((val >= -100) && (val <= +100));
 		LOG(5, "[vol %d, param: %d]", val, param);
 		ret = spd_set_volume(conn, val);
