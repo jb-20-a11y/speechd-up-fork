@@ -172,13 +172,29 @@ int get_speakup_option(const char* file_location)
 
 void set_speakup_option(const char* file_location, int digit)
 {
-	FILE *pFile = fopen(file_location, "w");
-	if (pFile == NULL) {
-		LOG(1, "Could not open for writing: %s", file_location);
+	char buf[32];
+	int len = snprintf(buf, sizeof(buf), "%d\n", digit);
+	if (len < 0 || len >= (int)sizeof(buf)) {
+		LOG(1, "Formatting error when writing %s", file_location);
 		return;
-	};
-	fprintf(pFile, "%d\n", digit);
-	fclose(pFile);
+	}
+	int fdw = open(file_location, O_WRONLY | O_TRUNC);
+	if (fdw == -1) {
+		LOG(1, "Could not open for writing: %s (%s)", file_location, strerror(errno));
+		return;
+	}
+	ssize_t written = 0;
+	ssize_t total = 0;
+	while (total < len) {
+		written = write(fdw, buf + total, len - total);
+		if (written < 0) {
+			if (errno == EINTR) continue;
+			LOG(1, "Write failed to %s: %s", file_location, strerror(errno));
+			break;
+		}
+		total += written;
+	}
+	close(fdw);
 }
 
 void spd_update_variables()
