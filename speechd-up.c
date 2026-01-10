@@ -137,11 +137,11 @@ const int voice_types_count = 8;
 
 // Current values
 int currate = 5;
-int curratebase = -100;
+int curratebase = 0;
 int curpitch = 5;
-int curpitchbase = -100;
+int curpitchbase = 0;
 int curvol = 5;
-int curvolbase = -100;
+int curvolbase = 0;
 int curvoicenum = 0;
 SPDVoiceType curvoice = SPD_MALE1;
 int curpuncnum = 0;
