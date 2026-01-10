@@ -126,7 +126,7 @@ void options_set_default(void)
 	options.probe_mode = 0;
 	options.dont_init_tables = 0;
 	options.dont_init_tables_set = DEFAULT;
-	options.respect_spd_defaults = 0;
+	options.respect_spd_defaults = 1;
 	options.respect_spd_defaults_set = DEFAULT;
 }
 
