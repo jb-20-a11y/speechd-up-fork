@@ -268,15 +268,21 @@ void xfree(void *data)
 		free(data);
 }
 
-void
-index_marker_callback(size_t msg_id, size_t client_id, SPDNotificationType type,
-		      char *index_mark)
+void index_marker_callback(size_t msg_id, size_t client_id, SPDNotificationType type, char *index_mark)
 {
-	//LOG(5,"Index Mark Callback");
-	if (index_mark != NULL)
-		if (write(fd, index_mark, sizeof(index_mark)) < 0)
-			LOG(1, "Unable to write index mark: %s\n",
-			    strerror(errno));
+	if (!index_mark || *index_mark == '\0') return;
+	size_t len = strlen(index_mark);
+	size_t total = 0;
+	ssize_t written;
+	while (total < len) {
+		written = write(fd, index_mark + total, len - total);
+		if (written < 0) {
+			if (errno == EINTR) continue;
+			LOG(1, "Unable to write index mark '%s': %s", index_mark, strerror(errno));
+			return;
+		}
+		total += written;
+	}
 }
 
 void speechd_init()
