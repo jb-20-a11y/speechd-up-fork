@@ -154,20 +154,31 @@ const char* SPEAKUP_RATE = "/sys/accessibility/speakup/soft/rate";
 const char* SPEAKUP_VOICE = "/sys/accessibility/speakup/soft/voice";
 const char* SPEAKUP_VOLUME = "/sys/accessibility/speakup/soft/vol";
 
-int get_speakup_option(const char* file_location)
+void get_speakup_option(const char* file_location, int *digit)
 {
-	int digit = 0;
-	FILE *pFile;
-	pFile = fopen (file_location, "r");
-	if (pFile == NULL) {
-		LOG(1, "Could not open for reading: %s", file_location);
-		return 0;
+	long val = 0;
+	char buf[64] = {0};
+	FILE *pFile = fopen(file_location, "r");
+	if (!pFile) {
+		LOG(1, "Could not open for reading: %s (%s)", file_location, strerror(errno));
+		return;
 	}
-	else {
-		fscanf(pFile, "%d", &digit);
+	if (!fgets(buf, sizeof(buf), pFile)) {
+		LOG(1, "Could not read from %s", file_location);
 		fclose(pFile);
+		return;
 	}
-	return digit;
+	fclose(pFile);
+	char *end = NULL;
+	errno = 0;
+	val = strtol(buf, &end, 10);
+	if (errno != 0 || end == buf) {
+		LOG(1, "Invalid integer read from %s: '%s'", file_location, buf);
+		return;
+	}
+	if (val < 0) val = 0;
+	if (val > 9) val = 9;
+	*digit = (int)val;
 }
 
 void set_speakup_option(const char* file_location, int digit)
@@ -197,16 +208,21 @@ void set_speakup_option(const char* file_location, int digit)
 	close(fdw);
 }
 
-void spd_update_variables()
+void spd_update_variables(void)
 {
-currate = get_speakup_option(SPEAKUP_RATE);
-curpitch = get_speakup_option(SPEAKUP_PITCH);
-//curvol = get_speakup_option(SPEAKUP_VOLUME);
-curvoicenum = get_speakup_option(SPEAKUP_VOICE);
-//curpunc = get_speakup_option(SPEAKUP_PUNCTUATION);
+	get_speakup_option(SPEAKUP_RATE, &currate);
+	LOG(5,"Starting speakup rate: %d\n", currate);
+	get_speakup_option(SPEAKUP_PITCH, &curpitch);
+	LOG(5,"Starting speakup pitch: %d\n", curpitch);
+	//get_speakup_option(SPEAKUP_VOLUME, &curvol);
+	//LOG(5,"Starting speakup volume: %d\n", curvol);
+	get_speakup_option(SPEAKUP_VOICE, &curvoicenum);
+	LOG(5,"Starting speakup voice: %d\n", curvoicenum);
+	//get_speakup_option(SPEAKUP_PUNCTUATION, &curpunc);
+	//LOG(5,"Starting speakup punctuation: %d\n", curpunc);
 }
 
-void spd_sync_defaults()
+void spd_sync_defaults(void)
 {
 	LOG(5,"Attempting to synchronize speechd-up to inherited speech-dispatcher defaults\n");
 	int rate = spd_get_voice_rate(conn);
