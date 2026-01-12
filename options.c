@@ -189,6 +189,7 @@ void options_parse(int argc, char *argv[])
 				free(options.language);
 			options.language = strdup(optarg);
 			options.language_set = COMMAND_LINE;
+			break;
 		case 'v':
 			options_print_version();
 			exit(0);
@@ -203,6 +204,7 @@ void options_parse(int argc, char *argv[])
 		case 't':
 			options.dont_init_tables = 1;
 			options.dont_init_tables_set = COMMAND_LINE;
+			break;
 		case 'x':
 			options.respect_spd_defaults = 1;
 			options.respect_spd_defaults_set = COMMAND_LINE;
