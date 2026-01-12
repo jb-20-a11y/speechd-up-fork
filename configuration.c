@@ -176,7 +176,7 @@ static DOTCONF_CB(cb_speakupDevice)
 
 static DOTCONF_CB(cb_respectSPDDefaults)
 {
-	if (options.respect_spd_defaults != COMMAND_LINE) {
+	if (options.respect_spd_defaults_set != COMMAND_LINE) {
 		LOG(3, "setting %s to %i\n", cmd->name, cmd->data.value);
 		options.respect_spd_defaults = cmd->data.value;
 		options.respect_spd_defaults_set = CONFIG_FILE;
